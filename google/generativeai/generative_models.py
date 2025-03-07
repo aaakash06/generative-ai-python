@@ -244,6 +244,7 @@ class GenerativeModel:
         tools: content_types.FunctionLibraryType | None = None,
         tool_config: content_types.ToolConfigType | None = None,
         request_options: helper_types.RequestOptionsType | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> generation_types.GenerateContentResponse:
         """A multipurpose function to generate responses from the model.
 
@@ -319,6 +320,13 @@ class GenerativeModel:
         if request_options is None:
             request_options = {}
 
+        # Add extra_headers to request_options if provided
+        if extra_headers:
+            metadata = request_options.get("metadata", [])
+            for key, value in extra_headers.items():
+                metadata.append((key, value))
+            request_options["metadata"] = metadata
+
         try:
             if stream:
                 with generation_types.rewrite_stream_error():
@@ -351,6 +359,7 @@ class GenerativeModel:
         tools: content_types.FunctionLibraryType | None = None,
         tool_config: content_types.ToolConfigType | None = None,
         request_options: helper_types.RequestOptionsType | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> generation_types.AsyncGenerateContentResponse:
         """The async version of `GenerativeModel.generate_content`."""
         if not contents:
@@ -372,6 +381,13 @@ class GenerativeModel:
 
         if request_options is None:
             request_options = {}
+        
+        # Add extra_headers to request_options if provided
+        if extra_headers:
+            metadata = request_options.get("metadata", [])
+            for key, value in extra_headers.items():
+                metadata.append((key, value))
+            request_options["metadata"] = metadata
 
         try:
             if stream:
@@ -405,6 +421,7 @@ class GenerativeModel:
         tools: content_types.FunctionLibraryType | None = None,
         tool_config: content_types.ToolConfigType | None = None,
         request_options: helper_types.RequestOptionsType | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> protos.CountTokensResponse:
         if request_options is None:
             request_options = {}
@@ -421,6 +438,14 @@ class GenerativeModel:
                 tools=tools,
                 tool_config=tool_config,
         ))
+
+        # Add extra_headers to request_options if provided
+        if extra_headers:
+            metadata = request_options.get("metadata", [])
+            for key, value in extra_headers.items():
+                metadata.append((key, value))
+            request_options["metadata"] = metadata
+
         return self._client.count_tokens(request, **request_options)
 
     async def count_tokens_async(
@@ -432,6 +457,7 @@ class GenerativeModel:
         tools: content_types.FunctionLibraryType | None = None,
         tool_config: content_types.ToolConfigType | None = None,
         request_options: helper_types.RequestOptionsType | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> protos.CountTokensResponse:
         if request_options is None:
             request_options = {}
@@ -448,6 +474,14 @@ class GenerativeModel:
                 tools=tools,
                 tool_config=tool_config,
         ))
+
+        # Add extra_headers to request_options if provided
+        if extra_headers:
+            metadata = request_options.get("metadata", [])
+            for key, value in extra_headers.items():
+                metadata.append((key, value))
+            request_options["metadata"] = metadata
+
         return await self._async_client.count_tokens(request, **request_options)
 
     # fmt: on
@@ -519,6 +553,7 @@ class ChatSession:
         tools: content_types.FunctionLibraryType | None = None,
         tool_config: content_types.ToolConfigType | None = None,
         request_options: helper_types.RequestOptionsType | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> generation_types.GenerateContentResponse:
         """Sends the conversation history with the added message and returns the model's response.
 
@@ -583,6 +618,7 @@ class ChatSession:
             tools=tools_lib,
             tool_config=tool_config,
             request_options=request_options,
+            extra_headers=extra_headers,
         )
 
         self._check_response(response=response, stream=stream)
@@ -678,6 +714,7 @@ class ChatSession:
         tools: content_types.FunctionLibraryType | None = None,
         tool_config: content_types.ToolConfigType | None = None,
         request_options: helper_types.RequestOptionsType | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> generation_types.AsyncGenerateContentResponse:
         """The async version of `ChatSession.send_message`."""
         if request_options is None:
@@ -712,6 +749,7 @@ class ChatSession:
             tools=tools_lib,
             tool_config=tool_config,
             request_options=request_options,
+            extra_headers=extra_headers,
         )
 
         self._check_response(response=response, stream=stream)
