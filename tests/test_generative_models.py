@@ -1,3 +1,16 @@
+"""Tests for Google AI Generative Language Python SDK.
+
+This module contains tests for the generative_models module, including:
+- Basic CUJ tests for different use cases (text generation, image input, etc.)
+- Tests for model configuration options (generation config, safety settings)
+- Tests for streaming functionality
+- Tests for chat sessions and multi-turn conversations
+- Tests for tool calling features
+- Tests for error handling and response formatting
+- Tests for the extra_headers parameter that allows setting custom HTTP headers for API requests,
+  particularly useful for integration with services like Helicone that require user-specific headers.
+"""
+
 import collections
 from collections.abc import Iterable
 import copy
@@ -15,6 +28,9 @@ from google.generativeai.types import generation_types
 from google.generativeai.types import helper_types
 
 import PIL.Image
+import unittest
+import unittest.mock
+import asyncio
 
 HERE = pathlib.Path(__file__).parent
 TEST_IMAGE_PATH = HERE / "test_img.png"
@@ -1248,6 +1264,144 @@ class CUJTests(parameterized.TestCase):
         request_options["retry"] = None
         self.assertEqual(request_options, self.observed_kwargs[0])
 
+    def test_generate_content_with_extra_headers(self):
+        model = generative_models.GenerativeModel(client=self.mock)
+        extra_headers = {"Helicone-User-Id": "test-user-123", "Custom-Header": "test-value"}
+        model.generate_content("Hello", extra_headers=extra_headers)
+        
+        # Check if the metadata in request_options contains our headers
+        self.assertIn("metadata", self.observed_kwargs[-1])
+        metadata = self.observed_kwargs[-1]["metadata"]
+        
+        # Metadata is a list of tuples (key, value)
+        headers_dict = dict(metadata)
+        self.assertEqual("test-user-123", headers_dict["Helicone-User-Id"])
+        self.assertEqual("test-value", headers_dict["Custom-Header"])
+
+    def test_count_tokens_with_extra_headers(self):
+        model = generative_models.GenerativeModel(client=self.mock)
+        extra_headers = {"Helicone-Auth": "Bearer sk-test-token"}
+        model.count_tokens("Hello world", extra_headers=extra_headers)
+        
+        # Check if the metadata in request_options contains our headers
+        self.assertIn("metadata", self.observed_kwargs[-1])
+        metadata = self.observed_kwargs[-1]["metadata"]
+        
+        # Metadata is a list of tuples (key, value)
+        headers_dict = dict(metadata)
+        self.assertEqual("Bearer sk-test-token", headers_dict["Helicone-Auth"])
+
+    def test_chat_with_extra_headers(self):
+        model = generative_models.GenerativeModel(client=self.mock)
+        chat = model.start_chat()
+        extra_headers = {"Helicone-User-Id": "user-abc", "Helicone-Property-Session": "123456"}
+        chat.send_message("hello", extra_headers=extra_headers)
+        
+        # Check if the metadata in request_options contains our headers
+        self.assertIn("metadata", self.observed_kwargs[-1])
+        metadata = self.observed_kwargs[-1]["metadata"]
+        
+        # Metadata is a list of tuples (key, value)
+        headers_dict = dict(metadata)
+        self.assertEqual("user-abc", headers_dict["Helicone-User-Id"])
+        self.assertEqual("123456", headers_dict["Helicone-Property-Session"])
+
+    def test_extra_headers_with_existing_request_options(self):
+        model = generative_models.GenerativeModel(client=self.mock)
+        extra_headers = {"Helicone-User-Id": "test-user-456"}
+        request_options = {"timeout": 30, "metadata": [("Existing-Header", "existing-value")]}
+        
+        model.generate_content("Test message", extra_headers=extra_headers, request_options=request_options)
+        
+        # Check if both the existing metadata and new headers are in the request_options
+        self.assertIn("metadata", self.observed_kwargs[-1])
+        metadata = dict(self.observed_kwargs[-1]["metadata"])
+        
+        self.assertEqual("test-user-456", metadata["Helicone-User-Id"])
+        self.assertEqual("existing-value", metadata["Existing-Header"])
+        self.assertEqual(30, self.observed_kwargs[-1]["timeout"])
+
+
+class AsyncExtraHeadersTests(unittest.TestCase):
+    """Test extra_headers parameter in async methods."""
+
+    async def test_generate_content_async_with_extra_headers(self):
+        # Set up a mock client for async testing
+        mock_client = unittest.mock.MagicMock()
+        
+        # Mock the count_tokens method to return a response
+        mock_response = unittest.mock.MagicMock()
+        mock_client.generate_content.return_value = mock_response
+        
+        # Create a model with the mock client
+        model = generative_models.GenerativeModel(model_name="gemini-1.5-flash")
+        model._async_client = mock_client
+        
+        # Call generate_content_async with extra_headers
+        extra_headers = {"Helicone-User-Id": "async-test-user"}
+        await model.generate_content_async("Hello async world", extra_headers=extra_headers)
+        
+        # Check if the extra_headers were correctly passed to the mock client
+        call_kwargs = mock_client.generate_content.call_args.kwargs
+        self.assertIn("metadata", call_kwargs)
+        
+        # Convert metadata to dict for easier assertions
+        metadata = dict(call_kwargs["metadata"])
+        self.assertEqual("async-test-user", metadata["Helicone-User-Id"])
+    
+    async def test_count_tokens_async_with_extra_headers(self):
+        # Set up a mock client for async testing
+        mock_client = unittest.mock.MagicMock()
+        
+        # Mock the count_tokens method to return a response
+        mock_response = unittest.mock.MagicMock()
+        mock_client.count_tokens.return_value = mock_response
+        
+        # Create a model with the mock client
+        model = generative_models.GenerativeModel(model_name="gemini-1.5-flash")
+        model._async_client = mock_client
+        
+        # Call count_tokens_async with extra_headers
+        extra_headers = {"Helicone-Auth": "async-bearer-token"}
+        await model.count_tokens_async("Count these tokens", extra_headers=extra_headers)
+        
+        # Check if the extra_headers were correctly passed to the mock client
+        call_kwargs = mock_client.count_tokens.call_args.kwargs
+        self.assertIn("metadata", call_kwargs)
+        
+        # Convert metadata to dict for easier assertions
+        metadata = dict(call_kwargs["metadata"])
+        self.assertEqual("async-bearer-token", metadata["Helicone-Auth"])
+    
+    async def test_send_message_async_with_extra_headers(self):
+        # Set up a mock client for async testing
+        mock_client = unittest.mock.MagicMock()
+        
+        # Mock the generate_content method to return a response
+        response = unittest.mock.MagicMock()
+        response.candidates = [unittest.mock.MagicMock()]
+        response.candidates[0].content = unittest.mock.MagicMock()
+        mock_client.generate_content.return_value = response
+        
+        # Create a model with the mock client
+        model = generative_models.GenerativeModel(model_name="gemini-1.5-flash")
+        model._async_client = mock_client
+        
+        # Create a chat session
+        chat = model.start_chat()
+        
+        # Call send_message_async with extra_headers
+        extra_headers = {"Helicone-Session-Id": "async-session-123"}
+        await chat.send_message_async("Hello async chat", extra_headers=extra_headers)
+        
+        # Check if the extra_headers were correctly passed to the mock client
+        call_kwargs = mock_client.generate_content.call_args.kwargs
+        self.assertIn("metadata", call_kwargs)
+        
+        # Convert metadata to dict for easier assertions
+        metadata = dict(call_kwargs["metadata"])
+        self.assertEqual("async-session-123", metadata["Helicone-Session-Id"])
+
 
 if __name__ == "__main__":
-    absltest.main()
+    unittest.main()
